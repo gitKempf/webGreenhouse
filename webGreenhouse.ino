@@ -6,7 +6,7 @@
 #include <Wire.h>
 #include "RTClib.h"
 
-#define TIME_VALVES_SHEDULE_CHECK_PERIOD 100   // Period of checking if valves need to be open (* 10 ms)
+#define TIME_VALVES_SHEDULE_CHECK_PERIOD 1000   // Period of checking if valves need to be open (* 10 ms)
 #define TIME_SERIAL_PERIOD 5   // Period of handling serial comands (* 10 ms)
 unsigned long timing; // 
 unsigned int valvesShaduleCheckCount; // Preiod counter for program interaption of checking valves shadule
@@ -145,7 +145,7 @@ void setup() {
     // Following line sets the RTC to the date & time this sketch was compiled
     
     // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-    // print_datetime_in_console(rtc.now());
+    // printDatetimeInConsole(rtc.now());
   
     // Following line sets the RTC with an explicit date & time
     // for example to set January 27 2017 at 12:56 you would call:
@@ -168,6 +168,7 @@ void loop(){
   handleWebServer();
 }
 
+// Programmable interruption implemented to distribute resources of the controller execution time.
 void  timerInterupt() {
   // Checking if difference of milliseconds from system start 
   // and last saved amount of milliseconds from system start  
@@ -258,33 +259,49 @@ void print_datetime_in_console(DateTime date){
     Serial.println();  
 }
 
+String StringFromDatetime(DateTime date){
+  String stringifiedDate = 
+      String(date.year()) + '/' +
+      String(date.month()) + '/' +
+      String(date.day()) + ' ' +
+      // String(daysOfTheWeek[date.dayOfTheWeek()]) + ' ' +
+      String(date.hour()) + ':' +
+      String(date.minute()) + ':' +
+      String(date.second()) ;
+  return stringifiedDate;
+}
+
 void handleSerial(){
    // Handling serial commands 
     if (Serial.available() > 0) {
     String str = Serial.readStringUntil('\n');
     if (str == "show time") {
-      print_datetime_in_console(rtc.now());
+      printDatetimeInConsole(rtc.now());
+      
+    }
+    if (str == "show datetime") {
+      Serial.println(StringFromDatetime(rtc.now()));  
     }
     if (str == "set time") {
       rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-      print_datetime_in_console(rtc.now());
+      printDatetimeInConsole(rtc.now());
     }
     if (str == "begin") {
       Serial.print("begining: ");
       Serial.println(rtc.begin());
-      print_datetime_in_console(rtc.now());
+      printDatetimeInConsole(rtc.now());
     }
     if (str == "isrunning") {
       Serial.print("is running: ");
       Serial.println(rtc.isrunning());
-      print_datetime_in_console(rtc.now());
+      printDatetimeInConsole(rtc.now());
     }
     if (str == "reset clock") {
       Serial.print("resetting clock: ");
       digitalWrite(CLOCK_GND, HIGH);
       delay(500);
       digitalWrite(CLOCK_GND, LOW);
-      print_datetime_in_console(rtc.now());
+      printDatetimeInConsole(rtc.now());
     }
     if (str == "stopWebRequest") {
       Serial.print("stop");
@@ -619,13 +636,13 @@ void handleWebServer(){
           if(strcmp( PostParamKey, "currentHour") == 0){
             DateTime now = rtc.now();
             Serial.println("Saving hour");
-            print_datetime_in_console(DateTime(now.year(), now.month(), now.day(), atoi(PostParamValue), now.minute(), 0));
+            printDatetimeInConsole(DateTime(now.year(), now.month(), now.day(), atoi(PostParamValue), now.minute(), 0));
             rtc.adjust(DateTime(now.year(), now.month(), now.day(), atoi(PostParamValue), now.minute(), 0));
           }
           if(strcmp( PostParamKey, "currentMin") == 0){
             DateTime now = rtc.now();
             Serial.println("Saving minutes");
-            print_datetime_in_console(DateTime(now.year(), now.month(), now.day(), now.hour(), atoi(PostParamValue), 0));
+            printDatetimeInConsole(DateTime(now.year(), now.month(), now.day(), now.hour(), atoi(PostParamValue), 0));
             rtc.adjust(DateTime(now.year(), now.month(), now.day(), now.hour(), atoi(PostParamValue), 0));
           }
         } 
@@ -634,20 +651,20 @@ void handleWebServer(){
             if(strcmp( PostParamKey, "currentDate") == 0){
               DateTime now = rtc.now();
               Serial.println("Saving date");
-              print_datetime_in_console(DateTime(now.year(), now.month(), atoi(PostParamValue), now.hour(), now.minute(), 0));
+              printDatetimeInConsole(DateTime(now.year(), now.month(), atoi(PostParamValue), now.hour(), now.minute(), 0));
               rtc.adjust(DateTime(now.year(), now.month(), atoi(PostParamValue), now.hour(), now.minute(), 0));
               
             }
             if(strcmp( PostParamKey, "currentMonth") == 0){
               DateTime now = rtc.now();
               Serial.println("Saving month");
-              print_datetime_in_console(DateTime(now.year(), atoi(PostParamValue), now.day(), now.hour(),now.minute(), 0));
+              printDatetimeInConsole(DateTime(now.year(), atoi(PostParamValue), now.day(), now.hour(),now.minute(), 0));
               rtc.adjust(DateTime(now.year(), atoi(PostParamValue), now.day(), now.hour(),now.minute(), 0));
             }
             if(strcmp( PostParamKey, "currentYear") == 0){
               DateTime now = rtc.now();
               Serial.println("Saving year");
-              print_datetime_in_console(DateTime(atoi(PostParamValue), now.month(), now.day(), now.hour(), now.minute(), 0));
+              printDatetimeInConsole(DateTime(atoi(PostParamValue), now.month(), now.day(), now.hour(), now.minute(), 0));
               rtc.adjust(DateTime(atoi(PostParamValue), now.month(), now.day(), now.hour(), now.minute(), 0));
             }
          }
@@ -743,6 +760,7 @@ void renderWebPage(){
    
   // Display current state, and ON/OFF buttons for Valve 1 
   client.println("<p>Valve 1 - State " + valve1.openStateName + "</p>");
+  client.println("<p>Last time opened: "+ StringFromDatetime( valve1.lastTimeOpened) +"</p>");
   client.print("<div>");
   // If the valve_1_state is off, it displays the ON button 
   if (valve1.openState == false) {
@@ -786,6 +804,7 @@ void renderWebPage(){
   
    // Display current state, and ON/OFF buttons for Valve 2 
   client.println("<p>Valve 2 - State " +  valve2.openStateName  + "</p>");
+  client.println("<p>Last time opened: "+ StringFromDatetime( valve2.lastTimeOpened) +"</p>");
   // If the valve_2_state is off, it displays the ON button       
   client.print("<div>");
   if (valve2.openState == false) {
